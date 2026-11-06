@@ -2,6 +2,8 @@ param(
     [ValidatePattern('^[A-Za-z0-9_.-]+$')]
     [string]$Environment = 'esp32-s3-n16r8',
     [switch]$Clean,
+    [ValidateRange(1,32)]
+    [int]$Jobs = 4,
     [ValidatePattern('^COM[1-9][0-9]*$')]
     [string]$UploadPort = ''
 )
@@ -35,9 +37,15 @@ if (-not $pioExecutable) {
 }
 
 $previousPackagesDirectory = [System.Environment]::GetEnvironmentVariable('PLATFORMIO_PACKAGES_DIR', 'Process')
+$previousTempDirectory = [System.Environment]::GetEnvironmentVariable('TEMP', 'Process')
+$previousTmpDirectory = [System.Environment]::GetEnvironmentVariable('TMP', 'Process')
 $localCacheConfig = Join-Path $projectRoot '.local\platformio-packages.txt'
 $resultCode = 0
 try {
+    $buildTempDirectory=Join-Path $projectRoot '.local\build-temp'
+    New-Item -ItemType Directory -Path $buildTempDirectory -Force | Out-Null
+    [System.Environment]::SetEnvironmentVariable('TEMP',$buildTempDirectory,'Process')
+    [System.Environment]::SetEnvironmentVariable('TMP',$buildTempDirectory,'Process')
     if (Test-Path -LiteralPath $localCacheConfig -PathType Leaf) {
         $localPackagesDirectory = [System.IO.File]::ReadAllText($localCacheConfig).Trim()
         if (-not $localPackagesDirectory -or -not (Test-Path -LiteralPath $localPackagesDirectory -PathType Container)) {
@@ -53,7 +61,7 @@ try {
     }
     if ($resultCode -eq 0) {
         Write-Host ('Building {0}.' -f $Environment)
-        & $pioExecutable run --project-dir $projectRoot --environment $Environment
+        & $pioExecutable run --project-dir $projectRoot --environment $Environment -j $Jobs
         $resultCode = $LASTEXITCODE
     }
     if ($resultCode -eq 0) {
@@ -68,12 +76,14 @@ try {
     }
     if ($resultCode -eq 0 -and $UploadPort) {
         Write-Host ('Uploading to explicitly requested port {0}.' -f $UploadPort)
-        & $pioExecutable run --project-dir $projectRoot --environment $Environment --target upload --upload-port $UploadPort
+        & $pioExecutable run --project-dir $projectRoot --environment $Environment -j $Jobs --target upload --upload-port $UploadPort
         $resultCode = $LASTEXITCODE
     } elseif (-not $UploadPort) {
         Write-Host 'No upload requested. Firmware was not uploaded.'
     }
 } finally {
     [System.Environment]::SetEnvironmentVariable('PLATFORMIO_PACKAGES_DIR', $previousPackagesDirectory, 'Process')
+    [System.Environment]::SetEnvironmentVariable('TEMP',$previousTempDirectory,'Process')
+    [System.Environment]::SetEnvironmentVariable('TMP',$previousTmpDirectory,'Process')
 }
 exit $resultCode

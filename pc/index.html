@@ -1,0 +1,68 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="color-scheme" content="light">
+  <title>校园一卡通实验台</title>
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='7' fill='%2321694d'/%3E%3Ctext x='16' y='23' text-anchor='middle' fill='white' font-size='22'%3E校%3C/text%3E%3C/svg%3E">
+  <link rel="stylesheet" href="/styles.css">
+  <script defer src="/shared/protocol.js"></script>
+  <script defer src="/shared/business.js"></script>
+  <script defer src="/shared/logs.js"></script>
+  <script defer src="/shared/catalog.js"></script>
+  <script defer src="/js/transport.js"></script>
+  <script defer src="/js/demo.js"></script>
+  <script defer src="/js/model.js"></script>
+  <script defer src="/js/app.js"></script>
+</head>
+<body>
+<div class="app-shell">
+  <aside class="sidebar">
+    <a class="brand" href="/" aria-label="校园实验台首页"><span class="brand-mark">校</span><span>校园实验台<small>CAMPUS CARD LAB</small></span></a>
+    <div class="sidebar-label">工作空间</div>
+    <nav aria-label="功能导航">
+      <button class="nav-item active" data-view="trade"><span>▧</span>业务办理</button>
+      <button class="nav-item" data-view="logs"><span>≡</span>交易流水</button>
+      <button class="nav-item" data-view="catalog"><span>▦</span>商品与档位</button>
+      <button class="nav-item" data-view="screen"><span>▣</span>屏幕与电源</button>
+      <button class="nav-item" data-view="diagnostics"><span>⌁</span>终端诊断</button>
+    </nav>
+    <div class="sidebar-foot"><span class="sidebar-led"></span>单终端 · 双端协作<small>PC 通过 USB / 蓝牙连接<br>手机通过微信小程序连接</small></div>
+  </aside>
+  <div class="workspace">
+    <header class="topbar"><div class="breadcrumb">校园一卡通 <span>/</span> <strong id="breadcrumb">业务办理</strong></div><div class="topbar-right"><span class="demo-label">虚拟余额实验</span><span id="connection-status" class="status-pill">未连接终端</span></div></header>
+    <main>
+      <div class="page-heading"><div><div class="eyebrow">CAMPUS CARD CONSOLE</div><h1 id="page-title">每一笔刷卡，都清清楚楚。</h1><p id="page-subtitle">连接你的终端，管理卡片与模拟校园消费。</p></div><button class="button subtle" id="refresh-state">刷新状态 <span>↻</span></button></div>
+      <section class="connection-bar" aria-label="连接终端"><div><span id="device-dot" class="device-dot"></span><strong id="device-name">连接你的 ESP32-S3</strong><span class="connection-detail" id="transport-description">优先使用 USB，电池供电时可选蓝牙。</span></div><div class="button-row"><button class="button primary compact" id="connect-usb">USB 串口连接</button><button class="button compact" id="connect-ble">蓝牙连接</button><button class="button compact" id="connect-demo">体验演示设备</button><button class="button compact" id="disconnect" hidden>断开</button></div></section>
+      <div class="notice" id="notice" role="status" aria-live="polite" hidden></div><div class="error-notice" id="error" role="alert" hidden></div>
+      <section class="demo-banner" id="demo-banner" hidden><div><strong>演示设备</strong><span>A 卡预置 50 元，B 卡为空白；演示数据仅保存在本机，与实体卡独立。</span></div><div class="button-row"><label>当前卡片 <select id="demo-card"><option value="A">A · S50 空包卡</option><option value="B">B · S50 异形卡</option></select></label><button class="button primary compact" id="demo-scan">刷演示卡</button></div></section>
+      <section class="pending-panel" id="pending-panel" hidden><div><span class="pending-icon">!</span><div><strong id="pending-title">等待刷卡</strong><p id="pending-detail"></p><code id="pending-id"></code></div></div><div class="button-row"><button class="button compact" id="query-original">核对原订单</button><button class="button compact" id="cancel-pending">取消等待</button><button class="button compact" id="resume-original" hidden>重发原订单（同编号）</button></div></section>
+
+      <section data-panel="trade" class="view-panel">
+        <div class="trade-grid">
+          <div class="card-column">
+            <div class="section-kicker">最近读取的卡片</div>
+            <section class="campus-card" aria-label="校园卡余额"><div class="card-top"><span>校园一卡通</span><span class="card-stamp">CAMPUS / 01</span></div><div class="card-balance-label">模拟余额 · 元</div><div class="card-balance" id="card-balance">--<span>.--</span></div><div class="card-bottom"><div><strong id="card-owner">等待刷卡</strong><small id="card-student">待机刷卡只查询余额</small></div><div class="card-number" id="card-number">S50 TEST CARD</div></div><div class="card-rings" aria-hidden="true"></div></section>
+            <div class="card-meta"><span>卡片 UID</span><code id="card-uid">尚未读取</code></div>
+            <section class="receipt panel" id="receipt"><div class="section-heading"><h2>最近一笔回执</h2><span class="result-tag" id="receipt-status">等待交易</span></div><div class="receipt-empty" id="receipt-empty"><span class="receipt-symbol">✓</span><strong>让卡片靠近读卡器</strong><p>开卡、充值与消费的结果会显示在这里。</p></div><div id="receipt-content" hidden><div class="receipt-main" id="receipt-message"></div><div class="receipt-row"><span>交易卡号</span><strong id="receipt-card"></strong></div><div class="receipt-row"><span id="receipt-scene">消费金额</span><strong id="receipt-amount"></strong></div><div class="receipt-row"><span id="receipt-balance-label">交易后余额</span><strong id="receipt-balance"></strong></div><div class="receipt-time" id="receipt-time"></div><code class="order-number" id="receipt-id"></code></div></section>
+          </div>
+          <section class="panel transaction-panel"><div class="section-heading"><div><div class="section-kicker">办理业务</div><h2>从一张卡开始</h2></div><span class="muted tiny">金额均为模拟余额</span></div><div class="kind-tabs" role="group" aria-label="业务类型"><button data-kind="spend" class="active">消费</button><button data-kind="topup">充值</button><button data-kind="issue">开卡</button></div>
+            <form id="trade-form"><div id="payment-fields"><label class="field-label" for="amount">本次消费金额</label><div class="amount-input"><span>¥</span><input id="amount" name="amount" value="12.50" inputmode="decimal" autocomplete="off" required aria-label="交易金额"></div><div class="quick-label" id="quick-label">选择商品</div><div class="quick-grid" id="quick-options"></div><label class="field-label" for="scene">消费场景</label><input id="scene" name="scene" value="食堂" maxlength="24" autocomplete="off"></div><div id="issue-fields" hidden><label class="field-label" for="issue-name">姓名</label><input id="issue-name" name="name" placeholder="例如：小明" maxlength="24" autocomplete="off"><label class="field-label" for="student-no">模拟学号</label><input id="student-no" name="studentNo" placeholder="例如：20260001" maxlength="16" autocomplete="off"><div class="hint-box">请使用自己的空白 S50 测试卡。开卡后初始余额为 0 元。</div></div><button class="button primary full submit-trade" type="submit" id="submit-trade" disabled>确认金额，等待刷卡消费 <span>→</span></button><p class="form-note" id="trade-note">连接终端后办理业务；每个订单只会成功一次。</p></form>
+          </section>
+        </div>
+      </section>
+
+      <section data-panel="logs" class="view-panel" hidden><div class="stats-grid"><div class="stat"><span>筛选记录</span><strong id="stat-count">0</strong><small id="stat-success">成功 0 笔</small></div><div class="stat"><span>成功充值 · 元</span><strong id="stat-topup">0.00</strong></div><div class="stat"><span>成功消费 · 元</span><strong id="stat-spend">0.00</strong></div><div class="stat"><span>净变化 · 元</span><strong id="stat-net">0.00</strong></div></div><section class="panel ledger-panel"><div class="section-heading"><div><h2>终端交易流水</h2><p class="muted tiny">读取设备保留的最近 20 条记录，统计仅计成功交易。</p></div><div class="button-row"><button class="button compact" id="refresh-logs">读取完整流水</button><button class="button primary compact" id="export-csv">导出 CSV</button></div></div><div class="filter-row"><label>卡号<input id="filter-card" placeholder="搜索卡号"></label><label>场景<input id="filter-scene" placeholder="例如：食堂"></label><label>类型<select id="filter-kind"><option value="all">全部类型</option><option value="topup">充值</option><option value="spend">消费</option><option value="issue">开卡</option></select></label><label>结果<select id="filter-status"><option value="all">全部结果</option><option value="success">成功</option><option value="declined">拒绝</option><option value="cancelled">取消</option><option value="expired">超时</option><option value="uncertain">待核对</option></select></label></div><div class="table-scroll"><table><thead><tr><th>业务 / 场景</th><th>卡号</th><th>本次金额</th><th>交易后余额</th><th>结果</th><th>时间</th></tr></thead><tbody id="logs-body"></tbody></table></div><div class="empty-state" id="logs-empty">连接终端后，读取完整交易流水。</div><div class="ledger-footer"><span id="logs-summary">尚未读取</span><span>CSV 导出当前筛选结果</span></div></section></section>
+
+      <section data-panel="catalog" class="view-panel" hidden><section class="panel"><div class="section-heading"><div><h2>商品与消费场景</h2><p class="muted tiny">配置保存在当前浏览器，用于快速填写消费金额。</p></div><button class="button compact" id="add-product">＋ 添加商品</button></div><form id="catalog-form"><div class="catalog-head"><span>商品名称</span><span>价格 / 元</span><span>场景</span><span></span></div><div id="product-rows"></div><label class="field-label" for="topup-values">充值档位 / 元</label><input id="topup-values" placeholder="10, 20, 50, 100"><p class="muted tiny">用逗号分隔，最多 8 个档位；最多配置 12 个商品。</p><div class="form-actions"><button class="button primary" type="submit">保存商品与档位</button><button class="button" type="button" id="reset-catalog">恢复默认配置</button></div></form></section></section>
+
+      <section data-panel="screen" class="view-panel" hidden><div class="screen-grid"><section class="panel"><div class="section-heading"><div><h2>OLED 显示偏好</h2><p class="muted tiny">设置由终端保存，PC 和手机读取同一份配置。</p></div></div><form id="screen-form"><div class="two-fields"><label>金额字号<select id="font-size"><option value="12">12 像素</option><option value="16" selected>16 像素</option><option value="24">24 像素</option><option value="32">32 像素</option></select></label><label>展示方式<select id="effect"><option value="static">静态显示</option><option value="slide" selected>上滑切换</option><option value="type">逐字出现</option></select></label></div><label class="field-label" for="hold-seconds">结果停留 / 秒</label><input type="number" id="hold-seconds" min="1.5" max="10" step="0.5" value="3"><div class="form-actions"><button class="button primary" type="submit" id="save-screen">应用并保存</button><button class="button" type="button" id="play-preview">播放预览</button></div><p class="form-note">中文标签固定 12 像素；超宽金额会缩小显示，逐字效果作用于金额。</p></form></section><section class="oled-preview-panel"><div class="preview-label">128 × 64 OLED</div><div class="oled-bezel"><canvas id="oled-preview" width="128" height="64" role="img" aria-label="OLED 布局预览"></canvas></div><p>布局预览，字形和流畅度以实体屏幕为准。</p></section></div><section class="panel power-panel"><div class="section-heading"><div><h2>亮度与电池省电</h2><p class="muted tiny" id="power-capability">需要支持电源设置的终端固件。</p></div><span class="power-tag" id="battery-reading">电量采样未配置</span></div><form id="power-form"><div class="power-grid"><div><label class="field-label" for="brightness">屏幕亮度 <strong id="brightness-value">71%</strong></label><input type="range" id="brightness" min="1" max="255" value="180"><label class="field-label" for="idle-seconds">闲置熄屏 / 秒</label><input type="number" id="idle-seconds" min="0" max="3600" step="10" value="60"><p class="muted tiny">0 表示保持点亮；自动熄屏范围为 10–3600 秒。</p></div><div class="battery-mode-box"><label class="switch-label"><input type="checkbox" id="battery-mode"><span>电池省电模式</span></label><p>降低闲置扫描与动画刷新频率，保留连接和刷卡能力。</p><p class="muted tiny">未接电压采样硬件时，不显示电量百分比。</p></div></div><div class="form-actions"><button class="button primary" type="submit" id="save-power">保存电源设置</button><button class="button" type="button" id="wake-screen">唤醒屏幕</button></div></form></section></section>
+
+      <section data-panel="diagnostics" class="view-panel" hidden><section class="panel"><div class="section-heading"><div><h2>终端与连接状态</h2><p class="muted tiny">用于检查接线、连接与原订单恢复。</p></div><button class="button compact" id="copy-diagnostics">复制诊断信息</button></div><dl class="diagnostic-grid" id="diagnostic-values"></dl><div class="hint-box">USB 连接适合 PC 与手机蓝牙共同使用。电池供电时可通过蓝牙连接 PC；切换客户端前先核对当前订单。</div><div id="demo-diagnostics" class="demo-diagnostics" hidden><label class="switch-label"><input type="checkbox" id="demo-interrupt"><span>下一笔演示交易模拟写卡中断</span></label><p class="muted tiny">模拟中断后，再刷原卡完成核对，余额不会重复变化。</p><button class="button" id="reset-demo">重置演示设备数据</button></div></section><section class="panel console-panel"><div class="section-heading"><h2>连接记录</h2><button class="button compact" id="clear-diagnostics">清空记录</button></div><pre id="diagnostic-log" aria-live="polite">等待连接终端。</pre></section></section>
+      <footer class="footer"><span>ESP32-S3 · RC522 · SSD1306</span><span>自己的测试卡，虚拟校园日常。</span></footer>
+    </main>
+  </div>
+</div>
+</body>
+</html>

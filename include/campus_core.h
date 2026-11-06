@@ -146,13 +146,19 @@ class Engine {
  public:
   explicit Engine(Store& store):store_(store){}
   bool begin(uint32_t now=0) {
-    ready_=false;haveCard_=false;last_={};State loaded{};const int loadedStatus=store_.load(loaded);
+    ready_=false;haveCard_=false;last_={};expiryRetryPending_=false;State loaded{};const int loadedStatus=store_.load(loaded);
     if(loadedStatus<0)return false;
     if(loadedStatus>0) {
       if(!validState(loaded))return false;
       state_=loaded;ready_=true;
       if(state_.logSize)last_=*log(0);
-      if(state_.pending.phase==Phase::Waiting)finish(ResultStatus::Expired,Code::Expired,nullptr,now,0);
+      if(state_.pending.phase==Phase::Waiting) {
+        // A waiting authorization expires across restart. Do not accept cards
+        // until that terminal result is durable, even if storage is failing.
+        if(finish(ResultStatus::Expired,Code::Expired,nullptr,now,0)!=Code::Expired) {
+          ready_=false;return false;
+        }
+      }
       else if(state_.pending.phase==Phase::Uncertain)makeUncertain(Code::Uncertain,now,0);
       return true;
     }
@@ -187,6 +193,7 @@ class Engine {
     next.pending.armedAt=now;next.journal={};
     (void)unixTime;
     if(!persist(next))return Code::StorageError;
+    expiryRetryPending_=false;
     return Code::Ok;
   }
   Code cancel(uint32_t now,uint32_t unixTime=0) {
@@ -196,8 +203,15 @@ class Engine {
     return finish(ResultStatus::Cancelled,Code::Cancelled,nullptr,now,unixTime);
   }
   bool tick(uint32_t now,uint32_t unixTime=0) {
+    if(!ready_||state_.pending.phase!=Phase::Waiting){expiryRetryPending_=false;return false;}
     if(state_.pending.phase==Phase::Waiting&&uint32_t(now-state_.pending.armedAt)>=30000u) {
-      finish(ResultStatus::Expired,Code::Expired,nullptr,now,unixTime);return true;
+      // A failed flash commit must not turn the 2ms main loop into repeated
+      // full-ledger writes and duplicate BLE events. Retry at most once/second.
+      if(expiryRetryPending_&&uint32_t(now-expiryRetryAt_)<1000u)return false;
+      if(finish(ResultStatus::Expired,Code::Expired,nullptr,now,unixTime)==Code::Expired) {
+        expiryRetryPending_=false;return true;
+      }
+      expiryRetryAt_=now;expiryRetryPending_=true;
     }return false;
   }
   Code scan(CardIO& io,const uint8_t* uid,uint8_t uidSize,uint32_t now,uint32_t unixTime=0) {
@@ -213,8 +227,8 @@ class Engine {
     if(state_.pending.phase==Phase::Uncertain)return recover(io,slots,uidHash,uidText,now,unixTime);
     // Expiry is evaluated before accepting a card, including when polling was delayed.
     if(state_.pending.phase==Phase::Waiting&&uint32_t(now-state_.pending.armedAt)>=30000u) {
-      finish(ResultStatus::Expired,Code::Expired,nullptr,now,unixTime);
-      if(readCode==Code::Ok){card_=slots.records[slots.current];haveCard_=true;}return Code::Expired;
+      const Code code=finish(ResultStatus::Expired,Code::Expired,nullptr,now,unixTime);
+      if(readCode==Code::Ok){card_=slots.records[slots.current];haveCard_=true;}return code;
     }
     if(readCode==Code::Ok) {
       card_=slots.records[slots.current];haveCard_=true;
@@ -256,6 +270,8 @@ class Engine {
  private:
   struct Slots {uint8_t bytes[2][RecordBytes]{};CardRecord records[2]{};bool valid[2]={},blank[2]={};int current=-1;};
   Store& store_;State state_{};CardRecord card_{};Result last_{};bool ready_=false,haveCard_=false;
+  // Runtime-only backoff; preserve the version-1 persisted State layout.
+  uint32_t expiryRetryAt_=0;bool expiryRetryPending_=false;
   static uint32_t stateChecksum(const State& s) {
     const uint8_t* bytes=reinterpret_cast<const uint8_t*>(&s);uint32_t crc=0xffffffffu;
     for(size_t i=0;i<sizeof(s);++i) {

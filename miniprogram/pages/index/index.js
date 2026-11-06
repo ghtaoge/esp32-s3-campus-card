@@ -1,9 +1,28 @@
 const { CampusClient, message } = require('../../utils/ble');
-const { OperationBook, makeOperation, originalCommand, money, decorateResult, terminal } = require('../../utils/business');
+const { OperationBook, makeOperation, originalCommand, parseMoney, money, decorateResult, terminal } = require('../../utils/business');
+const { loadAllLogs } = require('../../utils/logs');
+const catalog = require('../../utils/catalog');
 const DEVICE_KEY = 'campus.lastDevice.v1';
 const effects = ['static', 'slide', 'type'];
 const fontSizes = [12, 16, 24, 32];
 const holdTimes = [1500, 3000, 5000, 10000];
+const statuses = ['all', 'success', 'declined', 'cancelled', 'expired', 'uncertain'];
+function catalogView(value) {
+  return { products: value.products.map(item => Object.assign({}, item, { amount: money(item.amountCents) })),
+    quickAmounts: value.topups.map(money), topupDraft: value.topups.map(money).join(', ') };
+}
+function logView(logs, view) {
+  const filteredLogs = catalog.filterLogs(logs, { cardNo: view.cardNoFilter, scene: view.sceneFilter, status: statuses[view.statusIndex] });
+  const summary = catalog.summarizeLogs(filteredLogs);
+  return { filteredLogs, logSummary: Object.assign(summary, { topupText: money(summary.topupCents), spendText: money(summary.spendCents), netText: money(summary.netCents) }) };
+}
+function wxCall(name, args) {
+  return new Promise((resolve, reject) => {
+    if (typeof wx[name] !== 'function') return reject(new Error('当前微信不支持此操作'));
+    try { wx[name](Object.assign({}, args, { success: resolve, fail: reject })); }
+    catch (error) { reject(error); }
+  });
+}
 
 Page({
   data: {
@@ -20,6 +39,14 @@ Page({
       { name: '饮料', amount: '3.00', scene: '超市' }, { name: '公交', amount: '1.00', scene: '公交' }
     ],
     logs: [], logsLoaded: false,
+    filteredLogs: [], cardNoFilter: '', sceneFilter: '', statusIndex: 0,
+    statusNames: ['全部状态', '成功', '未通过', '已取消', '已超时', '待核对'],
+    logSummary: { count: 0, successCount: 0, topupText: '0.00', spendText: '0.00', netText: '0.00' },
+    catalogError: '', topupDraft: '', productEditor: false, productDraftId: '', productName: '', productAmount: '', productScene: '食堂',
+    powerSupported: false, power: null, brightness: 180, idleSeconds: '60', batteryMode: false, powerDirty: false,
+    stableDeviceId: '旧固件未提供', usbReady: false, batteryText: '未配置电量采样', screenAwakeText: '未知',
+    diagnosticsSupported: false, diagnosticsOpen: false, diagnostics: null, diagnosticsView: null,
+    fontSizes: [12, 16, 24, 32],
     fontNames: ['12 像素', '16 像素', '24 像素', '32 像素'], fontIndex: 1,
     effectNames: ['静态显示', '上滑切换', '逐字出现'], effectIndex: 1,
     holdNames: ['1.5 秒', '3 秒', '5 秒', '10 秒'], holdIndex: 1, settingsDirty: false,
@@ -27,6 +54,10 @@ Page({
   },
   onLoad() {
     this.privacyResolvers = new Set(); this.operationBusy = false;
+    this.catalog = catalog.defaultCatalog();
+    try { this.catalog = catalog.loadCatalog(wx); }
+    catch (_) { this.setData({ catalogError: '本机商品配置不可用，暂时显示默认目录；编辑保存后可重新建立配置。' }); }
+    this.setData(catalogView(this.catalog));
     try {
       this.book = new OperationBook(wx);
       const saved = wx.getStorageSync(DEVICE_KEY);
@@ -42,6 +73,8 @@ Page({
         if (this.unloaded) return;
         const devices = this.data.devices.slice();
         const index = devices.findIndex(item => item.deviceId === device.deviceId);
+        // RSSI-only duplicate advertisements do not change the visible picker.
+        if (index >= 0 && devices[index].name === device.name) return;
         if (index < 0) devices.push(device); else devices[index] = device;
         this.setData({ devices, deviceOptions: ['请选择发现的终端'].concat(devices.map(item => `${item.name} · ${item.deviceId.slice(-6)}`)) });
       },
@@ -62,7 +95,7 @@ Page({
       },
       onState: state => this.applyState(state),
       onError: error => { if (!this.unloaded) this.setData({ errorText: message(error) }); }
-    });
+    }, { emitResponses: false });
     if (wx.onNeedPrivacyAuthorization) {
       this.privacyHandler = resolve => {
         if (this.unloaded || typeof resolve !== 'function') return;
@@ -83,22 +116,23 @@ Page({
     if (wx.offNeedPrivacyAuthorization && this.privacyHandler) wx.offNeedPrivacyAuthorization(this.privacyHandler);
     if (this.client) this.client.destroy();
   },
-  refreshLock() {
+  refreshLock(patch = {}) {
     if (this.unloaded) return;
+    const view = Object.assign({}, this.data, patch);
     const outstanding = this.book && this.deviceId ? this.book.get(this.deviceId) : null;
-    const pending = this.data.pending;
+    const pending = view.pending;
     const hasOutstanding = !!(outstanding || pending);
-    let operationHint = this.data.connected ? '待机刷卡仅查询余额，不会扣款' : '连接终端后，直接刷卡即可查询余额';
+    let operationHint = view.connected ? '待机刷卡仅查询余额，不会扣款' : '连接终端后，直接刷卡即可查询余额';
     if (pending) {
       const type = { issue: '开卡', topup: '充值', spend: '消费' }[pending.kind] || '交易';
       operationHint = pending.phase === 'uncertain'
         ? '写卡结果待核对：请重新刷原卡，期间不要创建新交易'
         : `等待刷卡${type}${pending.kind === 'issue' ? '' : ` ${money(pending.amountCents)} 元`}，任务约 30 秒后超时`;
     } else if (outstanding) operationHint = '上一笔订单结果待核对，请点击“核对原订单”；请勿重复充值或消费';
-    this.setData({ outstanding, hasOutstanding, operationHint,
-      canTrade: !!(this.data.connected && !this.data.busy && this.data.readerReady && this.data.deviceStorageReady && !hasOutstanding && this.data.storageReady),
-      canResume: !!(this.data.connected && !this.data.busy && this.data.readerReady && this.data.deviceStorageReady && outstanding && !pending && this.data.storageReady),
-      canCancel: !!(this.data.connected && !this.data.busy && pending && pending.phase === 'waiting') });
+    this.setData(Object.assign({}, patch, { outstanding, hasOutstanding, operationHint,
+      canTrade: !!(view.connected && !view.busy && view.readerReady && view.deviceStorageReady && !hasOutstanding && view.storageReady),
+      canResume: !!(view.connected && !view.busy && view.readerReady && view.deviceStorageReady && outstanding && !pending && view.storageReady),
+      canCancel: !!(view.connected && !view.busy && pending && pending.phase === 'waiting') }));
   },
   applyState(state) {
     if (this.unloaded || !state || typeof state !== 'object') return;
@@ -106,6 +140,9 @@ Page({
     if (state.device) {
       patch.oledReady = !!state.device.oledReady; patch.readerReady = !!state.device.readerReady;
       patch.deviceStorageReady = !!state.device.storageReady;
+      patch.powerSupported = !!(state.device.capabilities && state.device.capabilities.power);
+      patch.diagnosticsSupported = !!(state.device.capabilities && state.device.capabilities.diagnostics);
+      patch.stableDeviceId = state.device.id || '旧固件未提供'; patch.usbReady = !!state.device.usbReady;
     }
     if (state.ok === false) patch.errorText = (state.message || '终端未能完成本次操作') + (state.code ? `（${state.code}）` : '');
     else if (state.event === 'card') patch.errorText = '';
@@ -115,18 +152,43 @@ Page({
     if (Object.prototype.hasOwnProperty.call(state, 'pending')) patch.pending = state.pending;
     if (state.lastResult) patch.lastResult = decorateResult(state.lastResult);
     if (state.result) patch.lastResult = decorateResult(state.result);
-    if (Array.isArray(state.logs)) { patch.logs = state.logs.map(decorateResult); patch.logsLoaded = true; }
+    const isLogPage = state.op === 'logs' && Object.prototype.hasOwnProperty.call(state, 'nextOffset');
+    if (Array.isArray(state.logs) && !isLogPage) {
+      patch.logs = state.logs.map(decorateResult); patch.logsLoaded = true;
+      Object.assign(patch, logView(patch.logs, this.data));
+    }
     if (state.settings && (!this.data.settingsDirty || state.op === 'settings')) {
       patch.fontIndex = Math.max(0, fontSizes.indexOf(state.settings.fontSize));
       patch.effectIndex = Math.max(0, effects.indexOf(state.settings.effect));
       patch.holdIndex = Math.max(0, holdTimes.indexOf(state.settings.holdMs));
       patch.settingsDirty = false;
     }
+    if (state.power) {
+      patch.power = Object.assign({}, state.power);
+      patch.screenAwakeText = state.power.screenAwake ? '亮屏' : '已熄屏';
+      patch.batteryText = state.power.batteryMeasurement && Number.isFinite(state.power.batteryVoltage)
+        ? `${state.power.batteryVoltage.toFixed(2)} V` : '未配置电量采样';
+      if (!this.data.powerDirty || (state.op === 'power' && state.ok !== false)) {
+        patch.brightness = state.power.brightness; patch.idleSeconds = String(state.power.idleSeconds);
+        patch.batteryMode = !!state.power.batteryMode; patch.powerDirty = false;
+      }
+    }
+    if (state.diagnostics) {
+      const value = state.diagnostics;
+      const kb = number => Number.isFinite(number) && number >= 0 ? `${Math.round(number / 1024)} KB` : '--';
+      const ms = number => Number.isFinite(number) && number >= 0 ? `${number} ms` : '--';
+      patch.diagnostics = Object.assign({}, value);
+      patch.diagnosticsView = { uptime: Number.isFinite(value.uptimeMs) ? `${Math.floor(value.uptimeMs / 60000)} 分钟` : '--',
+        heap: kb(value.freeHeapBytes), minHeap: kb(value.minFreeHeapBytes), psram: kb(value.psramBytes),
+        maxLoop: ms(value.maxLoopMs), lastCard: ms(value.lastCardMs), maxCard: ms(value.maxCardMs),
+        links: `${value.bleConnected ? 'BLE 已连接' : 'BLE 未连接'} / ${value.usbConnected ? 'USB 已连接' : 'USB 未连接'}` };
+    }
     try { if (this.book && this.deviceId) this.book.reconcile(this.deviceId, state); }
     catch (_) { patch.errorText = '结果已收到，但本地订单标记未能清除，请重启后重新核对'; }
-    this.setData(patch); this.refreshLock();
-    if (state.event === 'transaction' && state.lastResult && terminal(state.lastResult.status)) {
-      this.setData({ notice: state.lastResult.message || '交易结果已更新' });
+    const transaction = state.event === 'transaction' && state.lastResult && terminal(state.lastResult.status);
+    if (transaction) patch.notice = state.lastResult.message || '交易结果已更新';
+    this.refreshLock(patch);
+    if (transaction) {
       // Do not present a new time as an old transaction's exact timestamp.
       if (this.data.tab === 'logs' && !this.operationBusy) this.loadLogs();
     }
@@ -168,10 +230,13 @@ Page({
   },
   async withBusy(action) {
     if (this.operationBusy) return;
-    this.operationBusy = true; this.setData({ busy: true, errorText: '', notice: '' }); this.refreshLock();
+    this.operationBusy = true; this.refreshLock({ busy: true, errorText: '', notice: '' });
     try { return await action(); }
-    catch (error) { if (!this.unloaded) this.setData({ errorText: message(error) }); }
-    finally { this.operationBusy = false; if (!this.unloaded) { this.setData({ busy: false }); this.refreshLock(); } }
+    catch (error) { if (!this.unloaded) {
+      if (error.response) this.applyState(error.response);
+      this.setData({ errorText: message(error) });
+    } }
+    finally { this.operationBusy = false; if (!this.unloaded) this.refreshLock({ busy: false }); }
   },
   async reconcileOriginal() {
     const original = this.book && this.deviceId ? this.book.get(this.deviceId) : null;
@@ -239,7 +304,7 @@ Page({
   },
   tabChange(event) {
     const tab = event.currentTarget.dataset.tab;
-    if (!['trade', 'logs', 'screen'].includes(tab)) return;
+    if (!['trade', 'logs', 'catalog', 'screen'].includes(tab)) return;
     this.setData({ tab });
     if (tab === 'logs' && this.data.connected && !this.data.busy) this.loadLogs();
   },
@@ -286,7 +351,92 @@ Page({
     if (!this.data.canCancel) return;
     return this.withBusy(async () => { this.applyState(await this.client.request({ op: 'cancel' })); await this.reconcileOriginal(); });
   },
-  loadLogs() { return this.withBusy(async () => { this.applyState(await this.client.request({ op: 'logs' })); }); },
+  loadLogs() { return this.withBusy(async () => {
+    const logs = await loadAllLogs(command => this.client.request(command));
+    this.applyState({ logs });
+  }); },
+  filterLogs(event) {
+    const field = event.currentTarget.dataset.field;
+    if (!['cardNoFilter', 'sceneFilter', 'statusIndex'].includes(field)) return;
+    const patch = { [field]: field === 'statusIndex' ? Number(event.detail.value) : event.detail.value };
+    this.setData(Object.assign(patch, logView(this.data.logs, Object.assign({}, this.data, patch))));
+  },
+  async exportLogs() {
+    if (this.data.busy || !this.data.filteredLogs.length) return;
+    return this.withBusy(async () => {
+      const text = catalog.logsToCsv(this.data.filteredLogs);
+      const copy = async () => { await wxCall('setClipboardData', { data: text }); this.setData({ notice: 'CSV 已复制，可粘贴后保存为 .csv 文件' }); };
+      if (!wx.env || !wx.env.USER_DATA_PATH || typeof wx.getFileSystemManager !== 'function' || typeof wx.shareFileMessage !== 'function') return copy();
+      const filePath = wx.env.USER_DATA_PATH + '/campus-ledger-export.csv';
+      try {
+        await new Promise((resolve, reject) => wx.getFileSystemManager().writeFile({ filePath, data: text, encoding: 'utf8', success: resolve, fail: reject }));
+        await wxCall('shareFileMessage', { filePath, fileName: 'campus-ledger-' + Date.now() + '.csv' });
+        if (!this.unloaded) this.setData({ notice: 'CSV 已导出，包含当前筛选的设备流水' });
+      } catch (error) {
+        if (/cancel/i.test(error.errMsg || error.message || '')) this.setData({ notice: '已取消导出' });
+        else await copy();
+      }
+    });
+  },
+  localCatalog(value, notice) {
+    try {
+      this.catalog = catalog.saveCatalog(wx, value);
+      this.setData(Object.assign(catalogView(this.catalog), { catalogError: '', notice }));
+      return true;
+    } catch (error) { this.setData({ catalogError: error.message || '本机配置保存失败' }); return false; }
+  },
+  newProduct() { this.setData({ productEditor: true, productDraftId: '', productName: '', productAmount: '', productScene: '食堂', catalogError: '' }); },
+  editProduct(event) {
+    const item = this.catalog.products.find(value => value.id === event.currentTarget.dataset.id);
+    if (item) this.setData({ productEditor: true, productDraftId: item.id, productName: item.name, productAmount: money(item.amountCents), productScene: item.scene, catalogError: '' });
+  },
+  productInput(event) {
+    const key = event.currentTarget.dataset.field;
+    if (['productName', 'productAmount', 'productScene', 'topupDraft'].includes(key)) this.setData({ [key]: event.detail.value });
+  },
+  saveProduct() {
+    try {
+      const item = { id: this.data.productDraftId || 'p' + Date.now().toString(36) + Math.floor(Math.random() * 65536).toString(36),
+        name: this.data.productName, amountCents: parseMoney(this.data.productAmount), scene: this.data.productScene };
+      const products = this.catalog.products.slice(); const index = products.findIndex(value => value.id === item.id);
+      if (index < 0) products.push(item); else products[index] = item;
+      if (this.localCatalog({ products, topups: this.catalog.topups }, '商品已保存在本机目录')) this.setData({ productEditor: false });
+    } catch (error) { this.setData({ catalogError: error.message }); }
+  },
+  deleteProduct(event) {
+    this.localCatalog({ products: this.catalog.products.filter(item => item.id !== event.currentTarget.dataset.id), topups: this.catalog.topups }, '商品已从本机目录删除');
+  },
+  cancelProduct() { this.setData({ productEditor: false }); },
+  saveTopups() {
+    try {
+      const amounts = this.data.topupDraft.trim().split(/[,，、\s]+/).filter(Boolean).map(parseMoney);
+      this.localCatalog({ products: this.catalog.products, topups: amounts }, '充值档位已保存在本机');
+    } catch (error) { this.setData({ catalogError: error.message }); }
+  },
+  powerInput(event) {
+    const field = event.currentTarget.dataset.field;
+    if (!['brightness', 'idleSeconds', 'batteryMode'].includes(field)) return;
+    this.setData({ [field]: field === 'brightness' ? Number(event.detail.value) : field === 'batteryMode' ? !!event.detail.value : event.detail.value, powerDirty: true });
+  },
+  savePower() {
+    if (!this.data.connected || !this.data.powerSupported || this.data.busy) return;
+    return this.withBusy(async () => {
+      const brightness = Number(this.data.brightness), idleSeconds = Number(this.data.idleSeconds);
+      if (!/^\d+$/.test(String(this.data.idleSeconds)) || !Number.isInteger(brightness) || brightness < 1 || brightness > 255 ||
+          !Number.isInteger(idleSeconds) || !(idleSeconds === 0 || (idleSeconds >= 10 && idleSeconds <= 3600))) throw new Error('亮度须为 1–255，闲置秒数为 0 或 10–3600');
+      this.applyState(await this.client.request({ op: 'power', batteryMode: this.data.batteryMode, brightness, idleSeconds }));
+      this.setData({ notice: '电源设置已由设备确认并保存' });
+    });
+  },
+  wakeScreen() {
+    if (!this.data.connected || !this.data.powerSupported || this.data.busy) return;
+    return this.withBusy(async () => { this.applyState(await this.client.request({ op: 'wake' })); this.setData({ notice: '设备已确认唤醒屏幕' }); });
+  },
+  showDiagnostics() {
+    if (!this.data.connected || !this.data.diagnosticsSupported || this.data.busy) return;
+    return this.withBusy(async () => { this.applyState(await this.client.request({ op: 'diagnostics' })); this.setData({ diagnosticsOpen: true }); });
+  },
+  hideDiagnostics() { this.setData({ diagnosticsOpen: false }); },
   chooseFont(event) { this.setData({ fontIndex: Number(event.detail.value), settingsDirty: true }); },
   chooseEffect(event) { this.setData({ effectIndex: Number(event.detail.value), settingsDirty: true }); },
   chooseHold(event) { this.setData({ holdIndex: Number(event.detail.value), settingsDirty: true }); },

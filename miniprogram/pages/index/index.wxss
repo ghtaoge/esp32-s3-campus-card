@@ -46,7 +46,7 @@
 .amount-field > text { font-size:44rpx; color:#35634a; }
 .amount-field input { font-size:66rpx; min-height:108rpx; height:112rpx; background:transparent; padding:8rpx 0; color:#183d2c; font-weight:500; }
 .quick-grid { display:grid; grid-template-columns:repeat(4,minmax(0,1fr)); gap:12rpx; margin-bottom:28rpx; }
-.quick-grid button { padding:20rpx 4rpx; font-size:25rpx; border-radius:15rpx; color:#42654f; background:#f0f5f1; }
+.quick-grid button { padding:20rpx 4rpx; font-size:25rpx; border-radius:15rpx; color:#42654f; background:#f0f5f1; overflow-wrap:anywhere; word-break:break-all; }
 .product-price { display:block; font-size:20rpx; color:#8a9a8e; margin-top:6rpx; }
 .field-label { color:#52695b; font-size:25rpx; margin:20rpx 0 12rpx; }
 .action-button { width:100%; margin-top:28rpx; margin-bottom:16rpx; }
@@ -72,3 +72,21 @@
 .privacy-mask { position:fixed; z-index:50; left:0; right:0; top:0; bottom:0; display:flex; align-items:center; justify-content:center; background:rgba(12,31,20,.48); padding:34rpx; }
 .privacy-panel { width:100%; max-width:680rpx; background:#fff; border-radius:28rpx; padding:34rpx; }
 .privacy-copy { font-size:27rpx; color:#667e6d; margin:24rpx 0 14rpx; line-height:1.8; }
+.log-filters { display:flex; flex-wrap:wrap; gap:12rpx; margin:24rpx 0 18rpx; }
+.log-filters input { flex:1; min-width:190rpx; }
+.log-filters picker { width:100%; }
+.log-stats { display:flex; justify-content:space-between; gap:12rpx; padding:20rpx 0; font-size:28rpx; font-variant-numeric:tabular-nums; }
+.catalog-item { display:flex; align-items:center; justify-content:space-between; gap:14rpx; padding:20rpx 0; border-bottom:2rpx solid #edf2ee; }
+.catalog-item > view:first-child { flex:1; min-width:0; overflow-wrap:anywhere; }
+.catalog-actions { flex-shrink:0; gap:20rpx; }
+.catalog-actions button { min-height:80rpx; }
+.product-editor { display:flex; flex-direction:column; gap:16rpx; margin-top:24rpx; }
+.topup-input { margin-top:24rpx; }
+.power-section { border-top:2rpx solid #e5eee7; margin-top:34rpx; padding-top:28rpx; }
+.power-actions { margin:24rpx 0 16rpx; }
+.diagnostics { margin-top:20rpx; padding-top:12rpx; border-top:2rpx solid #e8eee9; }
+.diagnostic-grid { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:12rpx; font-size:23rpx; margin-bottom:14rpx; color:#557360; }
+.oled-preview { width:256rpx; height:128rpx; margin:24rpx auto 10rpx; background:#06110b; color:#e7f9ec; overflow:hidden; display:flex; flex-direction:column; justify-content:space-between; font-family:monospace; }
+.preview-title,.preview-detail { font-size:24rpx; line-height:1; white-space:nowrap; overflow:hidden; }
+.preview-amount { text-align:center; line-height:1; white-space:nowrap; }
+.preview-caption { text-align:center; }

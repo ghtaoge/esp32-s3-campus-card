@@ -1,4 +1,8 @@
-const { utf8 } = require('./protocol');
+(function (root, factory) {
+  if (typeof module === 'object' && module.exports) module.exports = factory(require('./protocol'));
+  else root.CampusBusiness = factory(root.CampusProtocol);
+})(typeof globalThis !== 'undefined' ? globalThis : this, function (protocol) {
+const { utf8 } = protocol;
 const OPERATION_KEY = 'campus.outstanding.v1';
 const CLOCK_KEY = 'campus.idclock.v1';
 const terminal = status => ['success', 'declined', 'cancelled', 'expired'].includes(status);
@@ -97,8 +101,11 @@ function decorateResult(result) {
   }
   return Object.assign({}, result, {
     kindText: kinds[result.kind] || '交易', statusText: statuses[result.status] || result.status || '未知',
-    amountText: money(result.amountCents || 0), balanceText: money(result.balanceCents), timeText,
-    amountPrefix: result.kind === 'topup' ? '+' : result.kind === 'spend' ? '−' : ''
+    amountText: money(result.amountCents || 0),
+    balanceText: result.status === 'uncertain' ? '待核对' : !result.cardNo ? '未读取' : money(result.balanceCents),
+    balanceLabel: result.status === 'uncertain' ? '余额（待核对）' : result.status === 'success' ? '交易后余额' : '卡内余额', timeText,
+    amountPrefix: result.status === 'success' ? (result.kind === 'topup' ? '+' : result.kind === 'spend' ? '−' : '') : ''
   });
 }
-module.exports = { parseMoney, money, textField, makeOperation, originalCommand, OperationBook, terminal, decorateResult, OPERATION_KEY };
+return { parseMoney, money, textField, makeOperation, originalCommand, OperationBook, terminal, decorateResult, OPERATION_KEY };
+});

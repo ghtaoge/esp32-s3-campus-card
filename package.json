@@ -2,9 +2,13 @@
   "name": "esp32-s3-campus-card",
   "private": true,
   "scripts": {
-    "test": "node --test miniprogram/tests/*.test.js",
+    "test": "node --test miniprogram/tests/*.test.js pc/tests/*.test.js",
     "test:core": "node tools/test-core.js",
     "test:transport": "node tools/test-transport.js",
+    "test:oled": "node tools/test-oled.js",
+    "test:runtime": "node tools/test-runtime.js",
+    "test:server": "python tests/server_test.py",
+    "start:pc": "python tools/serve_pc.py",
     "check:public": "node tools/check-public-files.js"
   }
 }

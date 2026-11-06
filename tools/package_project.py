@@ -10,7 +10,7 @@ if config.get("appid") != "touristappid":
 output = root / "output"
 output.mkdir(exist_ok=True)
 target = output / "esp32-s3-campus-card.zip"
-excluded = {".git", ".pio", ".local", ".tools", ".vscode", "output", "node_modules", "__pycache__"}
+excluded = {".git", ".pio", ".local", ".tools", ".vscode", ".playwright-cli", ".playwright", "output", "node_modules", "__pycache__"}
 with zipfile.ZipFile(target, "w", compression=zipfile.ZIP_DEFLATED) as archive:
     for file in sorted(root.rglob("*")):
         relative = file.relative_to(root)

@@ -2,6 +2,8 @@
 .local/
 .tools/
 .vscode/
+.playwright-cli/
+.playwright/
 *.log
 *.exe
 miniprogram/project.private.config.json

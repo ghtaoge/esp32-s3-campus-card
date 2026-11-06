@@ -58,3 +58,30 @@ test('compiled same-id resumption is shown only for a resumable local order', op
   assert.ok(action(render(data), 'resumeOriginal'));
   assert.equal(action(render({ ...data, canResume:false }), 'resumeOriginal'), undefined);
 });
+
+test('compiled power and diagnostics controls are gated by confirmed device capability', options, () => {
+  const legacy = render({ ...base, tab: 'screen', connected: true, busy: false, powerSupported: false });
+  assert.equal(action(legacy, 'savePower').attr.disabled, true); assert.equal(action(legacy, 'wakeScreen').attr.disabled, true);
+  const supported = render({ ...base, tab: 'screen', connected: true, busy: false, powerSupported: true, diagnosticsSupported: true });
+  assert.equal(!!action(supported, 'savePower').attr.disabled, false); assert.equal(!!action(supported, 'wakeScreen').attr.disabled, false);
+  assert.ok(action(supported, 'showDiagnostics'));
+});
+
+test('compiled catalog and ledger views expose editing and only export non-empty filtered records', options, () => {
+  const product = { id: 'lunch', name: '午餐', amount: '12.50', scene: '食堂' };
+  const editor = render({ ...base, tab: 'catalog', products: [product], productEditor: true });
+  for (const name of ['newProduct', 'editProduct', 'deleteProduct', 'saveProduct', 'saveTopups']) assert.ok(action(editor, name), name);
+  const empty = render({ ...base, tab: 'logs', filteredLogs: [] }); assert.equal(action(empty, 'exportLogs').attr.disabled, true);
+  const populated = render({ ...base, tab: 'logs', filteredLogs: [{ id: '1', scene: '食堂', amountText: '12.50' }] });
+  assert.equal(!!action(populated, 'exportLogs').attr.disabled, false);
+});
+
+test('compiled receipt identifies its own card independently of the last-read card', options, () => {
+  const data = { ...base, tab: 'trade', card: { cardNo: 10000001, name: '测试甲', balanceText: '50.00' },
+    lastResult: { cardNo: 10000002, kindText: '消费', status: 'success', amountText: '12.50', balanceText: '37.50' } };
+  const number = tree => find(tree, node => node.attr && node.attr.id === 'receipt-card-number');
+  const receipt = JSON.stringify(number(render(data)));
+  assert.match(receipt, /10000002/); assert.doesNotMatch(receipt, /10000001/);
+  const unread = JSON.stringify(number(render({ ...data, lastResult: { ...data.lastResult, cardNo: 0, status: 'cancelled' } })));
+  assert.match(unread, /未读取/);
+});

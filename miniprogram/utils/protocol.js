@@ -1,3 +1,7 @@
+(function (root, factory) {
+  if (typeof module === 'object' && module.exports) module.exports = factory();
+  else root.CampusProtocol = factory();
+})(typeof globalThis !== 'undefined' ? globalThis : this, function () {
 const SERVICE_UUID = 'c4a10001-6d6a-4b2e-ae8b-3d80b18a5100';
 const WRITE_UUID = 'c4a10002-6d6a-4b2e-ae8b-3d80b18a5100';
 const NOTIFY_UUID = 'c4a10003-6d6a-4b2e-ae8b-3d80b18a5100';
@@ -69,4 +73,5 @@ class Receiver {
     return { id, body };
   }
 }
-module.exports = { SERVICE_UUID, WRITE_UUID, NOTIFY_UUID, MAX_REQUEST, MAX_RESPONSE, utf8, decodeUtf8, packets, Receiver };
+return { SERVICE_UUID, WRITE_UUID, NOTIFY_UUID, MAX_REQUEST, MAX_RESPONSE, utf8, decodeUtf8, packets, Receiver };
+});
