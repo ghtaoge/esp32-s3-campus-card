@@ -1,0 +1,128 @@
+<view class="page">
+  <view class="masthead">
+    <view><text class="eyebrow">CAMPUS LAB</text><view class="title">一张卡，校园日常</view></view>
+    <text class="demo-badge">模拟业务</text>
+  </view>
+
+  <view class="device-panel panel">
+    <view class="row spread">
+      <view class="device-title"><text class="dot {{connected ? 'online' : ''}}"></text><text>{{connected ? deviceName : '连接你的校园卡终端'}}</text></view>
+      <button wx:if="{{connected}}" class="quiet small-button" bindtap="disconnect" disabled="{{busy}}">断开</button>
+    </view>
+    <view wx:if="{{!connected}}">
+      <view class="row device-actions">
+        <button class="primary compact" bindtap="search" loading="{{scanning}}" disabled="{{scanning || connecting}}">{{scanning ? '搜索中' : '搜索终端'}}</button>
+        <button wx:if="{{savedDeviceName}}" class="secondary compact" bindtap="reconnect" loading="{{connecting}}" disabled="{{scanning || connecting}}">重连上次设备</button>
+      </view>
+      <picker mode="selector" range="{{deviceOptions}}" value="{{deviceIndex}}" bindchange="selectDevice" disabled="{{connecting}}">
+        <view class="picker-value">{{connecting ? '正在连接并读取设备状态…' : deviceOptions[deviceIndex]}}<text>⌄</text></view>
+      </picker>
+      <view class="hint">{{scanHint || '请给开发板供电，打开手机蓝牙后搜索'}}</view>
+    </view>
+    <view wx:else class="hardware-row">
+      <text class="hardware {{readerReady ? '' : 'missing'}}">RC522 {{readerReady ? '就绪' : '未检测到'}}</text>
+      <text class="hardware {{oledReady ? '' : 'missing'}}">OLED {{oledReady ? '就绪' : '未检测到'}}</text>
+      <text class="hardware {{deviceStorageReady ? '' : 'missing'}}">设备存储 {{deviceStorageReady ? '就绪' : '不可用'}}</text>
+      <button class="quiet small-button" bindtap="refresh" disabled="{{busy}}">刷新状态</button>
+    </view>
+    <button wx:if="{{!connected}}" class="quiet permission-link" bindtap="openSettings">蓝牙权限设置</button>
+  </view>
+
+  <view class="balance-card">
+    <view class="row spread"><text class="card-label">校园一卡通</text><text class="card-lab">EXPERIMENT CARD</text></view>
+    <view class="balance-label">模拟余额 / 元</view>
+    <view class="balance-number">{{card ? card.balanceText : '--.--'}}</view>
+    <view class="row spread card-bottom">
+      <view><view class="card-owner">{{card ? card.name : '等待刷卡'}}</view><view class="card-detail">{{card ? '学号 ' + card.studentNo : '待机刷卡即可查询，不会扣款'}}</view></view>
+      <view class="card-number">{{card ? 'NO. ' + card.cardNo : 'NFC LAB'}}</view>
+    </view>
+  </view>
+
+  <view wx:if="{{errorText}}" class="feedback error" role="alert">{{errorText}}</view>
+  <view wx:if="{{notice}}" class="feedback notice">{{notice}}</view>
+  <view class="operation-strip {{hasOutstanding ? 'attention' : ''}}">
+    <view class="operation-copy">{{operationHint}}</view>
+    <view class="row" wx:if="{{hasOutstanding}}">
+      <button class="quiet" bindtap="queryOriginal" disabled="{{!connected || busy}}">核对原订单</button>
+      <button wx:if="{{canResume}}" class="quiet" bindtap="resumeOriginal" disabled="{{busy}}">重发原订单（同编号）</button>
+      <button wx:if="{{canCancel}}" class="quiet" bindtap="cancel" disabled="{{busy}}">取消等待</button>
+    </view>
+    <view wx:if="{{outstanding}}" class="order-id">订单 {{outstanding.id}}</view>
+    <view wx:if="{{outstanding && !pending}}" class="hint">只续办刚才中断的订单；久未处理请先核对余额与流水，不会自动重发。</view>
+  </view>
+
+  <view class="tabs">
+    <button class="tab {{tab === 'trade' ? 'selected' : ''}}" data-tab="trade" bindtap="tabChange">办理业务</button>
+    <button class="tab {{tab === 'logs' ? 'selected' : ''}}" data-tab="logs" bindtap="tabChange">交易流水</button>
+    <button class="tab {{tab === 'screen' ? 'selected' : ''}}" data-tab="screen" bindtap="tabChange">屏幕设置</button>
+  </view>
+
+  <view wx:if="{{tab === 'trade'}}">
+    <view class="panel trade-panel">
+      <view class="kind-tabs">
+        <button class="kind {{tradeKind === 'topup' ? 'active' : ''}}" data-kind="topup" bindtap="kindChange">充值</button>
+        <button class="kind {{tradeKind === 'spend' ? 'active' : ''}}" data-kind="spend" bindtap="kindChange">消费</button>
+      </view>
+      <view class="section-label">{{tradeKind === 'topup' ? '充值金额' : '本次消费金额'}}</view>
+      <view class="amount-field"><text>¥</text><input type="digit" value="{{amount}}" bindinput="inputAmount" maxlength="10" placeholder="0.00" disabled="{{busy || hasOutstanding}}" /></view>
+      <view wx:if="{{tradeKind === 'topup'}}" class="quick-grid">
+        <button wx:for="{{quickAmounts}}" wx:key="*this" data-amount="{{item}}" bindtap="chooseAmount" disabled="{{busy || hasOutstanding}}">{{item}} 元</button>
+      </view>
+      <view wx:else class="quick-grid">
+        <button wx:for="{{products}}" wx:key="name" data-index="{{index}}" bindtap="chooseProduct" disabled="{{busy || hasOutstanding}}"><view>{{item.name}}</view><text class="product-price">¥ {{item.amount}}</text></button>
+      </view>
+      <view class="field-label">{{tradeKind === 'topup' ? '充值备注' : '消费场景'}}</view>
+      <input value="{{scene}}" bindinput="inputScene" maxlength="24" placeholder="例如：食堂、超市、公交" disabled="{{busy || hasOutstanding}}" />
+      <button class="primary action-button" bindtap="submitTrade" loading="{{busy}}" disabled="{{!canTrade}}">{{tradeKind === 'topup' ? '确认金额，等待刷卡充值' : '确认金额，等待刷卡消费'}}</button>
+      <view class="hint">写卡后回读核对才显示完成。请保持卡片贴近读卡器，直到 OLED 显示结果。</view>
+    </view>
+
+    <view class="panel issue-panel">
+      <view class="row spread"><view><view class="section-heading">办理新卡</view><view class="hint">使用自己的空白测试卡，初始余额 0 元</view></view><button class="secondary compact" bindtap="toggleIssue" disabled="{{busy}}">{{issueOpen ? '收起' : '开卡'}}</button></view>
+      <view wx:if="{{issueOpen}}" class="issue-form">
+        <view class="field-label">姓名</view><input value="{{issueName}}" bindinput="inputName" maxlength="24" placeholder="最多 8 个常用汉字" disabled="{{busy || hasOutstanding}}" />
+        <view class="field-label">模拟学号</view><input value="{{studentNo}}" bindinput="inputStudentNo" maxlength="16" placeholder="例如：20260001" disabled="{{busy || hasOutstanding}}" />
+        <button class="primary action-button" bindtap="submitIssue" loading="{{busy}}" disabled="{{!canTrade}}">保存资料，等待刷卡开卡</button>
+      </view>
+    </view>
+
+    <view wx:if="{{lastResult}}" class="panel receipt {{lastResult.status === 'success' ? 'receipt-success' : ''}}">
+      <view class="row spread"><text class="section-heading">{{lastResult.kindText}}回执</text><text class="result-badge">{{lastResult.statusText}}</text></view>
+      <view class="receipt-message">{{lastResult.message}}</view>
+      <view class="row spread"><text class="muted">{{lastResult.scene}}</text><text>{{lastResult.amountPrefix}}{{lastResult.amountText}} 元</text></view>
+      <view class="row spread"><text class="muted">交易后余额</text><text>{{lastResult.balanceText}} 元</text></view>
+      <view class="hint">{{lastResult.timeText}}</view><view class="order-id">{{lastResult.id}}</view>
+    </view>
+  </view>
+
+  <view wx:if="{{tab === 'logs'}}" class="panel ledger">
+    <view class="row spread"><view><view class="section-heading">终端交易记录</view><view class="hint">从设备读取最近记录</view></view><button class="secondary compact" bindtap="loadLogs" loading="{{busy}}" disabled="{{!connected || busy}}">刷新</button></view>
+    <view wx:if="{{!logs.length}}" class="empty-state">{{logsLoaded ? '还没有交易记录' : '连接终端后，点击刷新读取交易流水'}}</view>
+    <view wx:for="{{logs}}" wx:key="id" class="ledger-item">
+      <view class="row spread"><text class="ledger-title">{{item.kindText}} · {{item.scene}}</text><text class="ledger-amount {{item.status === 'success' ? 'completed' : ''}}">{{item.amountPrefix}}{{item.amountText}}</text></view>
+      <view class="row spread"><text class="hint">卡号 {{item.cardNo || '--'}} · {{item.statusText}}</text><text class="hint">余额 {{item.balanceText}}</text></view>
+      <view class="hint">{{item.message}}</view><view class="hint">{{item.timeText}}</view><view class="order-id">{{item.id}}</view>
+    </view>
+  </view>
+
+  <view wx:if="{{tab === 'screen'}}" class="panel screen-panel">
+    <view class="section-heading">OLED 显示偏好</view><view class="hint">SSD1306 · 128 × 64 · 设置由终端保存</view>
+    <view class="settings-row"><text>金额字号</text><picker range="{{fontNames}}" value="{{fontIndex}}" bindchange="chooseFont" disabled="{{busy}}"><view class="settings-value">{{fontNames[fontIndex]}} ⌄</view></picker></view>
+    <view class="settings-row"><text>金额展示</text><picker range="{{effectNames}}" value="{{effectIndex}}" bindchange="chooseEffect" disabled="{{busy}}"><view class="settings-value">{{effectNames[effectIndex]}} ⌄</view></picker></view>
+    <view class="settings-row"><text>结果停留</text><picker range="{{holdNames}}" value="{{holdIndex}}" bindchange="chooseHold" disabled="{{busy}}"><view class="settings-value">{{holdNames[holdIndex]}} ⌄</view></picker></view>
+    <view class="screen-tip">字号用于金额，中文固定为 12 像素。金额过长会自动缩小，保证完整显示；逐字模式逐位显示金额。上滑模式同时滚动长中文，其他模式会截断长文字。交易成功显示对勾与硬币动画。</view>
+    <button class="primary action-button" bindtap="saveSettings" loading="{{busy}}" disabled="{{!connected || busy}}">应用并保存到终端</button>
+    <view wx:if="{{settingsDirty}}" class="hint">设置尚未应用</view>
+  </view>
+  <view class="footer">自己的测试卡 · 虚拟余额 · 单终端校园实验</view>
+</view>
+
+<view wx:if="{{showPrivacy}}" class="privacy-mask" catchtap="ignorePrivacyTap">
+  <view class="privacy-panel">
+    <view class="section-heading">连接前的隐私说明</view>
+    <view class="privacy-copy">需要使用蓝牙连接你自己的校园卡演示设备。请阅读并同意隐私指引后继续。</view>
+    <button class="quiet" bindtap="openPrivacy">{{privacyName}}</button>
+    <button id="agree-privacy" class="primary" open-type="agreePrivacyAuthorization" bindtap="preparePrivacyAgree" bindagreeprivacyauthorization="agreePrivacy" loading="{{privacyAgreePending}}" disabled="{{privacyAgreePending}}">同意并继续</button>
+    <button class="quiet" bindtap="rejectPrivacy">暂不连接</button>
+  </view>
+</view>

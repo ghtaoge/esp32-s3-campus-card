@@ -1,0 +1,2 @@
+#!/bin/sh
+exec node tools/check-public-files.js --staged

@@ -1,0 +1,10 @@
+{
+  "name": "esp32-s3-campus-card",
+  "private": true,
+  "scripts": {
+    "test": "node --test miniprogram/tests/*.test.js",
+    "test:core": "node tools/test-core.js",
+    "test:transport": "node tools/test-transport.js",
+    "check:public": "node tools/check-public-files.js"
+  }
+}

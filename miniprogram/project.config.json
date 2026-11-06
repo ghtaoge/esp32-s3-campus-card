@@ -1,0 +1,9 @@
+{
+  "appid": "touristappid",
+  "projectname": "esp32-s3-campus-card",
+  "description": "ESP32-S3 模拟校园一卡通",
+  "compileType": "miniprogram",
+  "miniprogramRoot": "./",
+  "setting": { "es6": true, "enhance": true, "minified": true, "postcss": true, "urlCheck": true },
+  "packOptions": { "ignore": [{ "value": "tests", "type": "folder" }], "include": [] }
+}
