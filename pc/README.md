@@ -1,6 +1,6 @@
 # PC 校园卡控制台
 
-在工程根目录运行 `python tools/serve_pc.py --no-browser`，使用桌面 Chrome / Edge 打开 `http://127.0.0.1:8765/`。也可运行 `tools/start-pc.ps1`。页面从同一服务器加载白名单共享模块 `/shared/`，不使用 `file://`。
+在工程根目录运行 `python tools/serve_pc.py --no-browser`，使用桌面 Chrome / Edge 打开 `http://127.0.0.1:18765/`。也可运行 `tools/start-pc.ps1`。页面从同一服务器加载白名单共享模块 `/shared/`，不使用 `file://`。
 
 - **USB 串口连接**：选择开发板，按 115200 波特率交换逐行 JSON。
 - **蓝牙连接**：适用于电池供电，使用 Web Bluetooth 与相同 BLE 服务；需要浏览器和系统支持。

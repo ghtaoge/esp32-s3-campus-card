@@ -15,6 +15,10 @@ SHARED_FILES = {"protocol.js", "business.js", "logs.js", "catalog.js"}
 class Handler(SimpleHTTPRequestHandler):
     extensions_map = {**SimpleHTTPRequestHandler.extensions_map, ".js": "text/javascript; charset=utf-8", ".css": "text/css; charset=utf-8", ".html": "text/html; charset=utf-8"}
 
+    def log_request(self, code="-", size="-"):
+        # Other localhost clients can include credentials in query strings.
+        self.log_message('"%s %s" %s', self.command, urlsplit(self.path).path, code)
+
     def allowed_host(self):
         try:
             return urlsplit("//" + self.headers.get("Host", "")).hostname in {"localhost", "127.0.0.1", "::1"}
@@ -61,7 +65,7 @@ class Handler(SimpleHTTPRequestHandler):
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--port", type=int, default=8765)
+    parser.add_argument("--port", type=int, default=18765)
     parser.add_argument("--no-browser", action="store_true")
     args = parser.parse_args()
     if not 1 <= args.port <= 65535:

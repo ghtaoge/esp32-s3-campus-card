@@ -96,7 +96,7 @@ python .\tools\prepare_wechat.py --appid 你的微信小程序AppID
 .\tools\start-pc.ps1
 ```
 
-需要 Python 3.9 或更新版本，默认自动打开 [本地控制台](http://127.0.0.1:8765/)。若系统默认浏览器不支持串口，复制此地址到 Chrome / Edge。可用 `-Port 9000` 更换端口，或 `-NoBrowser` 只启动服务；也可运行 `python tools/serve_pc.py --no-browser`。终端中按 Ctrl+C 停止服务。服务只监听本机地址，提供 `pc/` 页面和白名单共享脚本。
+需要 Python 3.9 或更新版本，默认自动打开 [本地控制台](http://127.0.0.1:18765/)。若系统默认浏览器不支持串口，复制此地址到 Chrome / Edge。可用 `-Port 9000` 更换端口，或 `-NoBrowser` 只启动服务；也可运行 `python tools/serve_pc.py --no-browser`。终端中按 Ctrl+C 停止服务。服务只监听本机地址，提供 `pc/` 页面和白名单共享脚本。
 
 PC 控制台面向 Windows Chrome / Edge，本地运行，USB 连接优先使用 Web Serial；电池独立供电时可选 Web Bluetooth。浏览器需要在连接按钮触发后由你选择串口或 BLE 设备。Web Serial 使用 115200 波特率；串口只能由一个程序占用，连接控制台前先关闭 PlatformIO 串口监视器等占用者。PC 的浏览器能力与手机微信 BLE 权限互不替代。
 

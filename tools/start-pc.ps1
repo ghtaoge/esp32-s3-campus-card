@@ -1,4 +1,4 @@
-param([ValidateRange(1,65535)][int]$Port=8765,[switch]$NoBrowser)
+param([ValidateRange(1,65535)][int]$Port=18765,[switch]$NoBrowser)
 $ErrorActionPreference='Stop'
 $serverScript=Join-Path $PSScriptRoot 'serve_pc.py'
 $pythonExecutable=Get-Command python -CommandType Application -ErrorAction SilentlyContinue | Select-Object -First 1

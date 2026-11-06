@@ -1,5 +1,6 @@
 """Verify the PC server serves only browser assets and shared public modules."""
-from contextlib import contextmanager
+from contextlib import redirect_stderr
+from io import StringIO
 from functools import partial
 import http.client
 from http.server import ThreadingHTTPServer
@@ -68,6 +69,13 @@ class ServerTests(unittest.TestCase):
 
     def test_foreign_host_is_rejected(self):
         self.assertEqual(self.request("/", "example.invalid")[0], 403)
+
+    def test_request_logs_omit_query_parameters(self):
+        output = StringIO()
+        with redirect_stderr(output):
+            self.assertEqual(self.request('/?token=not-for-request-log')[0], 200)
+        self.assertNotIn('not-for-request-log', output.getvalue())
+        self.assertNotIn('?token=', output.getvalue())
 
 
 if __name__ == "__main__":
