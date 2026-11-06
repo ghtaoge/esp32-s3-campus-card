@@ -2,9 +2,9 @@
   "pages": ["pages/index/index"],
   "window": {
     "navigationBarTitleText": "校园一卡通 · 演示",
-    "navigationBarBackgroundColor": "#f3f7f5",
+    "navigationBarBackgroundColor": "#f5f7fb",
     "navigationBarTextStyle": "black",
-    "backgroundColor": "#f3f7f5"
+    "backgroundColor": "#f5f7fb"
   },
   "permission": {
     "scope.bluetooth": { "desc": "连接你自己的校园卡演示终端，查询卡片、设置屏幕和完成模拟交易" }
