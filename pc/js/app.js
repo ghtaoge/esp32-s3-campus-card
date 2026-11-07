@@ -201,7 +201,7 @@
   function screenSettings() { return { fontSize: Number($('font-size').value), effect: $('effect').value, holdMs: Math.round(Number($('hold-seconds').value) * 1000) }; }
   function drawPreview(elapsed, animated) {
     const canvas = $('oled-preview'), context = canvas.getContext('2d'), settings = screenSettings(), layout = M.previewLayout(app.state.card, settings);
-    context.fillStyle = '#070b12'; context.fillRect(0, 0, 128, 64); context.fillStyle = '#edf4ff'; context.textBaseline = 'alphabetic';
+    context.fillStyle = '#0b0e0b'; context.fillRect(0, 0, 128, 64); context.fillStyle = '#f0f4ed'; context.textBaseline = 'alphabetic';
     const shift = animated && settings.effect === 'slide' ? Math.max(0, 1 - elapsed / 400) * 64 : 0;
     context.font = '12px "Microsoft YaHei",sans-serif'; context.fillText(`${layout.name} / 余额`, 1, 12 + shift);
     let amount = layout.amount;
